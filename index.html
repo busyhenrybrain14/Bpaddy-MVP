@@ -42,13 +42,15 @@
             document.getElementById("status").innerText = "Uploading...";
             
             try {
-                const response = await fetch(sasUrl + "&comp=blockblob", {
-                    method: "PUT",
-                    headers: {
-                        "x-ms-blob-type": "BlockBlob"
-                    },
-                    body: file
-                });
+                const response = await fetch("https://bpaddystorage.blob.core.windows.net/uploads?comp=blockblob", {
+    method: "PUT",
+    headers: {
+        "x-ms-blob-type": "BlockBlob",
+        "Content-Type": "application/octet-stream",
+    },
+    body: file,
+    mode: "cors"  // Explicitly enable CORS
+});
                 if (response.ok) {
                     document.getElementById("status").innerText = "Upload successful!";
                     fetchFiles(); // Refresh file list after upload
