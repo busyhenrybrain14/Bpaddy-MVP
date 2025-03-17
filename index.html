@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Excel File Upload</title>
+    <style>
+        body { font-family: Arial, sans-serif; text-align: center; padding: 50px; }
+        #uploadForm { margin-top: 20px; }
+        #status { margin-top: 10px; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <h2>Upload Your Excel File</h2>
+    <form id="uploadForm">
+        <input type="file" id="fileInput" accept=".xlsx">
+        <button type="submit">Upload</button>
+    </form>
+    <p id="status"></p>
+    
+    <script>
+        document.getElementById("uploadForm").addEventListener("submit", async function(event) {
+            event.preventDefault();
+            
+            const fileInput = document.getElementById("fileInput");
+            const file = fileInput.files[0];
+
+            if (!file) {
+                document.getElementById("status").innerText = "Please select a file.";
+                return;
+            }
+
+            const sasUrl = "https://bpaddystorage.blob.core.windows.net/uploads?st=2025-03-17T10:29:56Z&se=2025-03-17T18:29:56Z&si=bpaddypolicy&spr=https&sv=2022-11-02&sr=c&sig=b2Yml%2FGcoZOXbrgexTftjAnbMSHoLDKJym7KhFB%2Bv90%3D"; 
+            const blobName = file.name;
+            const uploadUrl = `${sasUrl}&restype=container&comp=blockblob&blob=${blobName}`;
+
+            document.getElementById("status").innerText = "Uploading...";
+
+            try {
+                const response = await fetch(uploadUrl, {
+                    method: "PUT",
+                    headers: {
+                        "x-ms-blob-type": "BlockBlob"
+                    },
+                    body: file
+                });
+
+                if (response.ok) {
+                    document.getElementById("status").innerText = "Upload Successful!";
+                } else {
+                    document.getElementById("status").innerText = "Upload Failed!";
+                }
+            } catch (error) {
+                document.getElementById("status").innerText = "Error: " + error.message;
+            }
+        });
+    </script>
+</body>
+</html>
