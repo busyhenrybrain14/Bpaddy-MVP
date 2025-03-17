@@ -7,7 +7,8 @@
     <style>
         body { font-family: Arial, sans-serif; text-align: center; padding: 50px; }
         #uploadForm { margin-top: 20px; }
-        #status { margin-top: 10px; font-weight: bold; }
+        #status { margin-top: 10px; font-weight: bold; color: green; }
+        #error { color: red; }
     </style>
 </head>
 <body>
@@ -17,41 +18,47 @@
         <button type="submit">Upload</button>
     </form>
     <p id="status"></p>
-    
+    <p id="error"></p>
+
     <script>
         document.getElementById("uploadForm").addEventListener("submit", async function(event) {
             event.preventDefault();
-            
             const fileInput = document.getElementById("fileInput");
-            const file = fileInput.files[0];
+            const statusText = document.getElementById("status");
+            const errorText = document.getElementById("error");
 
-            if (!file) {
-                document.getElementById("status").innerText = "Please select a file.";
+            statusText.innerText = "";
+            errorText.innerText = "";
+
+            if (!fileInput.files.length) {
+                errorText.innerText = "Please select a file.";
                 return;
             }
 
-            const sasUrl = "https://bpaddystorage.blob.core.windows.net/uploads?st=2025-03-17T10:29:56Z&se=2025-03-17T18:29:56Z&si=bpaddypolicy&spr=https&sv=2022-11-02&sr=c&sig=b2Yml%2FGcoZOXbrgexTftjAnbMSHoLDKJym7KhFB%2Bv90%3D"; 
-            const blobName = file.name;
-            const uploadUrl = `${sasUrl}&restype=container&comp=blockblob&blob=${blobName}`;
+            const file = fileInput.files[0];
+            const fileName = encodeURIComponent(file.name); // Encode special characters
+            const sasUrl = "https://bpaddystorage.blob.core.windows.net/uploads/" + fileName +
+                "?st=2025-03-17T10:44:23Z&se=2025-03-17T18:44:23Z&si=bpaddypolicy&spr=https&sv=2022-11-02&sr=c&sig=E%2BiWkDUfwnNGbTOgya6W5EVaaNRk%2FSycpG6MPRFuJZM%3D";
 
-            document.getElementById("status").innerText = "Uploading...";
+            statusText.innerText = "Uploading...";
 
             try {
-                const response = await fetch(uploadUrl, {
+                const response = await fetch(sasUrl, {
                     method: "PUT",
+                    body: file,
                     headers: {
                         "x-ms-blob-type": "BlockBlob"
-                    },
-                    body: file
+                    }
                 });
 
                 if (response.ok) {
-                    document.getElementById("status").innerText = "Upload Successful!";
+                    statusText.innerText = "Upload successful!";
                 } else {
-                    document.getElementById("status").innerText = "Upload Failed!";
+                    throw new Error(`Upload failed: ${response.statusText}`);
                 }
             } catch (error) {
-                document.getElementById("status").innerText = "Error: " + error.message;
+                errorText.innerText = "Upload failed. Check console for details.";
+                console.error("Upload error:", error);
             }
         });
     </script>
