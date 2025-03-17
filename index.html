@@ -1,118 +1,131 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Azure File Upload</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-</head>
-<body>
+import { useState, useEffect } from "react";
+import { BrowserRouter as Router, Routes, Route, Link } from "react-router-dom";
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Upload, BarChart } from "lucide-react";
 
-    <h2>Upload Excel File to Azure</h2>
-    <input type="file" id="fileInput" accept=".xlsx,.csv">
-    <button onclick="uploadFile()">Upload File</button>
+const STORAGE_URL = "https://bpaddystorage.blob.core.windows.net/uploads";
+const SAS_TOKEN = "si=bpaddypolicy&sv=2022-11-02&sr=c&sig=wvi7A1LnSU6GxtdWgKiwMcOfhdRBVevxGZEvqQdDGKo%3D";
+
+export default function App() {
+  return (
+    <Router>
+      <div className="min-h-screen bg-gradient-to-r from-green-700 to-blue-900 text-white flex flex-col items-center">
+        <nav className="w-full p-4 flex justify-between items-center bg-black bg-opacity-50">
+          <h1 className="text-2xl font-bold">Analytics Hub</h1>
+          <div>
+            <Link to="/" className="mx-2">Home</Link>
+            <Link to="/upload" className="mx-2">Upload</Link>
+            <Link to="/dashboard" className="mx-2">Dashboard</Link>
+          </div>
+        </nav>
+        <Routes>
+          <Route path="/" element={<Home />} />
+          <Route path="/upload" element={<UploadPage />} />
+          <Route path="/dashboard" element={<Dashboard />} />
+        </Routes>
+      </div>
+    </Router>
+  );
+}
+
+function Home() {
+  return (
+    <div className="flex flex-col items-center justify-center mt-20">
+      <h2 className="text-4xl font-bold">Welcome to Analytics Hub</h2>
+      <p className="mt-2 text-lg">Upload your data and gain powerful insights!</p>
+      <Link to="/upload">
+        <Button className="mt-4">Get Started</Button>
+      </Link>
+    </div>
+  );
+}
+
+function UploadPage() {
+  const [file, setFile] = useState(null);
+  const [uploadedFiles, setUploadedFiles] = useState([]);
+
+  useEffect(() => {
+    listFiles();
+  }, []);
+
+  const handleFileUpload = async (event) => {
+    const selectedFile = event.target.files[0];
+    setFile(selectedFile);
+    if (!selectedFile) return;
     
-    <h2>Uploaded Files</h2>
-    <button onclick="listFiles()">Show Files</button>
-    <ul id="fileList"></ul>
+    const uploadUrl = `${STORAGE_URL}/${selectedFile.name}?${SAS_TOKEN}`;
+    try {
+      const response = await fetch(uploadUrl, {
+        method: "PUT",
+        body: selectedFile,
+        headers: { "x-ms-blob-type": "BlockBlob" }
+      });
+      
+      if (response.ok) {
+        alert("File uploaded successfully!");
+        listFiles();
+      } else {
+        alert("Upload failed.");
+      }
+    } catch (error) {
+      console.error("Upload error:", error);
+      alert("Error uploading file.");
+    }
+  };
 
-    <h2>Excel Preview</h2>
-    <div id="excelPreview"></div>
+  async function listFiles() {
+    try {
+      const response = await fetch(`${STORAGE_URL}?restype=container&comp=list&${SAS_TOKEN}`, {
+        headers: { "x-ms-version": "2020-06-12" }
+      });
 
-    <script>
-        const storageUrl = "https://bpaddystorage.blob.core.windows.net/uploads";
-        const sasToken = "si=bpaddypolicy&sv=2022-11-02&sr=c&sig=wvi7A1LnSU6GxtdWgKiwMcOfhdRBVevxGZEvqQdDGKo%3D";
+      if (!response.ok) {
+        throw new Error("Error fetching files");
+      }
+      const text = await response.text();
+      const parser = new DOMParser();
+      const xml = parser.parseFromString(text, "application/xml");
+      const blobs = xml.getElementsByTagName("Name");
+      
+      const fileList = [];
+      for (let i = 0; i < blobs.length; i++) {
+        fileList.push(blobs[i].textContent);
+      }
+      setUploadedFiles(fileList);
+    } catch (error) {
+      console.error("Error listing files:", error);
+    }
+  }
 
-        async function uploadFile() {
-            const fileInput = document.getElementById("fileInput");
-            if (!fileInput.files.length) {
-                alert("Please select a file.");
-                return;
-            }
-            
-            const file = fileInput.files[0];
-            const uploadUrl = `${storageUrl}/${file.name}?${sasToken}`;
+  return (
+    <div className="flex flex-col items-center justify-center mt-20">
+      <Card className="p-6 bg-white text-black rounded-xl shadow-lg w-96">
+        <h2 className="text-2xl font-bold">Upload Data</h2>
+        <input type="file" onChange={handleFileUpload} className="mt-4 p-2 border" />
+        {file && <p className="mt-2">Selected: {file.name}</p>}
+      </Card>
+      <div className="mt-6">
+        <h2 className="text-xl font-bold">Uploaded Files</h2>
+        <ul className="mt-2 text-sm text-gray-200">
+          {uploadedFiles.length === 0 ? <p>No files uploaded yet.</p> : uploadedFiles.map((fileName, index) => (
+            <li key={index} className="mt-1">{fileName}</li>
+          ))}
+        </ul>
+      </div>
+    </div>
+  );
+}
 
-            try {
-                const response = await fetch(uploadUrl, {
-                    method: "PUT",
-                    body: file,
-                    headers: { "x-ms-blob-type": "BlockBlob" }
-                });
-
-                if (response.ok) {
-                    alert("File uploaded successfully!");
-                    listFiles(); // Refresh file list
-                } else {
-                    alert("Upload failed.");
-                }
-            } catch (error) {
-                console.error("Upload error:", error);
-                alert("Error uploading file.");
-            }
-        }
-
-        async function listFiles() {
-            const fileList = document.getElementById("fileList");
-            fileList.innerHTML = "<p>Loading...</p>";
-
-            try {
-                const response = await fetch(`${storageUrl}?restype=container&comp=list&${sasToken}`, {
-                    headers: { "x-ms-version": "2020-06-12" }
-                });
-
-                if (!response.ok) {
-                    throw new Error(`HTTP Error: ${response.status} - ${response.statusText}`);
-                }
-
-                const text = await response.text();
-                console.log("Azure Response:", text);
-
-                const parser = new DOMParser();
-                const xml = parser.parseFromString(text, "application/xml");
-                const blobs = xml.getElementsByTagName("Name");
-
-                fileList.innerHTML = ""; // Clear previous list
-
-                if (blobs.length === 0) {
-                    fileList.innerHTML = "<p>No files uploaded yet.</p>";
-                    return;
-                }
-
-                for (let i = 0; i < blobs.length; i++) {
-                    const fileName = blobs[i].textContent;
-                    const fileUrl = `${storageUrl}/${fileName}?${sasToken}`;
-                    const listItem = document.createElement("li");
-                    listItem.innerHTML = `<button onclick="fetchAndDisplayExcel('${fileUrl}')">${fileName}</button>`;
-                    fileList.appendChild(listItem);
-                }
-            } catch (error) {
-                console.error("Error listing files:", error);
-                fileList.innerHTML = `<p>Error loading files. Ensure CORS is correctly configured in Azure. Error: ${error.message}</p>`;
-            }
-        }
-
-        async function fetchAndDisplayExcel(fileUrl) {
-            try {
-                const response = await fetch(fileUrl);
-                if (!response.ok) {
-                    throw new Error("Failed to fetch file.");
-                }
-                const arrayBuffer = await response.arrayBuffer();
-                const data = new Uint8Array(arrayBuffer);
-                const workbook = XLSX.read(data, { type: "array" });
-
-                const sheetName = workbook.SheetNames[0]; // First sheet
-                const sheet = workbook.Sheets[sheetName];
-                const htmlTable = XLSX.utils.sheet_to_html(sheet);
-
-                document.getElementById("excelPreview").innerHTML = htmlTable;
-            } catch (error) {
-                console.error("Error loading Excel file:", error);
-                alert("Failed to load file.");
-            }
-        }
-    </script>
-
-</body>
-</html>
+function Dashboard() {
+  return (
+    <div className="flex flex-col items-center justify-center mt-20">
+      <Card className="p-6 bg-white text-black rounded-xl shadow-lg w-96">
+        <h2 className="text-2xl font-bold flex items-center">
+          <BarChart className="mr-2" /> Dashboard
+        </h2>
+        <p className="mt-2">Analytics results will be displayed here.</p>
+      </Card>
+    </div>
+  );
+}
