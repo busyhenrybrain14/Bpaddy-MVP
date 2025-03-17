@@ -6,10 +6,9 @@
     <title>Excel File Upload</title>
     <style>
         body { font-family: Arial, sans-serif; text-align: center; padding: 50px; }
-        #uploadForm, #filesList { margin-top: 20px; }
+        #uploadForm { margin-top: 20px; }
         #status { margin-top: 10px; font-weight: bold; }
-        ul { list-style-type: none; padding: 0; }
-        li { margin: 5px 0; }
+        #fileList { margin-top: 20px; text-align: left; display: inline-block; }
     </style>
 </head>
 <body>
@@ -19,14 +18,16 @@
         <button type="submit">Upload</button>
     </form>
     <p id="status"></p>
-    
-    <h2>Uploaded Files</h2>
-    <button onclick="fetchFiles()">Refresh File List</button>
-    <ul id="filesList"></ul>
-    
-    <script>
-        const sasUrl = "https://bpaddystorage.blob.core.windows.net/uploads?st=2025-03-17T10:44:23Z&se=2025-03-17T18:44:23Z&si=bpaddypolicy&spr=https&sv=2022-11-02&sr=c&sig=E%2BiWkDUfwnNGbTOgya6W5EVaaNRk%2FSycpG6MPRFuJZM%3D";
 
+    <h3>Uploaded Files</h3>
+    <ul id="fileList"></ul>
+
+    <script>
+        const sasToken = "st=2025-03-17T11:26:26Z&se=2025-03-31T11:26:26Z&si=bpaddypolicy&sv=2022-11-02&sr=c&sig=%2B457pDi6OImE0cI8ft9RZujFrXkEMlOP7kIiGCu2F8E%3D";
+        const containerName = "uploads";
+        const storageUrl = `https://bpaddystorage.blob.core.windows.net/${containerName}`;
+
+        // Upload File
         document.getElementById("uploadForm").addEventListener("submit", async function(event) {
             event.preventDefault();
             const fileInput = document.getElementById("fileInput");
@@ -34,55 +35,60 @@
                 document.getElementById("status").innerText = "Please select a file.";
                 return;
             }
-            
+
             const file = fileInput.files[0];
-            const formData = new FormData();
-            formData.append("file", file);
-            
+            const blobUrl = `${storageUrl}/${encodeURIComponent(file.name)}?${sasToken}`;
+
             document.getElementById("status").innerText = "Uploading...";
             
             try {
-                const response = await fetch("https://bpaddystorage.blob.core.windows.net/uploads?comp=blockblob", {
-    method: "PUT",
-    headers: {
-        "x-ms-blob-type": "BlockBlob",
-        "Content-Type": "application/octet-stream",
-    },
-    body: file,
-    mode: "cors"  // Explicitly enable CORS
-});
+                const response = await fetch(blobUrl, {
+                    method: "PUT",
+                    headers: {
+                        "x-ms-blob-type": "BlockBlob",
+                        "Content-Type": file.type
+                    },
+                    body: file
+                });
+
                 if (response.ok) {
                     document.getElementById("status").innerText = "Upload successful!";
-                    fetchFiles(); // Refresh file list after upload
+                    listFiles(); // Refresh file list
                 } else {
-                    document.getElementById("status").innerText = "Upload failed. Try again.";
+                    throw new Error("Upload failed.");
                 }
             } catch (error) {
                 document.getElementById("status").innerText = "Upload failed. Check console for details.";
+                console.error("Upload Error:", error);
             }
         });
 
-        async function fetchFiles() {
+        // List Uploaded Files
+        async function listFiles() {
             try {
-                const response = await fetch("https://bpaddystorage.blob.core.windows.net/uploads?restype=container&comp=list&" + sasUrl.split("?")[1]);
+                const response = await fetch(`${storageUrl}?restype=container&comp=list&${sasToken}`);
                 const text = await response.text();
                 const parser = new DOMParser();
-                const xml = parser.parseFromString(text, "application/xml");
+                const xml = parser.parseFromString(text, "text/xml");
                 const blobs = xml.getElementsByTagName("Name");
-                
-                const fileList = document.getElementById("filesList");
+
+                const fileList = document.getElementById("fileList");
                 fileList.innerHTML = "";
+
                 for (let i = 0; i < blobs.length; i++) {
                     const fileName = blobs[i].textContent;
-                    const fileUrl = `https://bpaddystorage.blob.core.windows.net/uploads/${fileName}?${sasUrl.split("?")[1]}`;
+                    const fileUrl = `${storageUrl}/${fileName}?${sasToken}`;
                     const listItem = document.createElement("li");
                     listItem.innerHTML = `<a href="${fileUrl}" target="_blank">${fileName}</a>`;
                     fileList.appendChild(listItem);
                 }
             } catch (error) {
-                console.error("Error fetching file list:", error);
+                console.error("Error listing files:", error);
             }
         }
+
+        // Load file list on page load
+        listFiles();
     </script>
 </body>
 </html>
